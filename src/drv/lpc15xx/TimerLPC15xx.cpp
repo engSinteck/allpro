@@ -34,6 +34,8 @@ Timer::Timer(int timerNum)
 void Timer::start(uint32_t interval) 
 {
     uint32_t val = tickDiv * interval;
+    if (val > 0xFFFFFF)
+    	val = 0xFFFFFF; // PIN limit to max timeout
     timer_->STAT |= 0x01; // Clear interrupt flag
     timer_->INTVAL = val | 0x80000000;
 }

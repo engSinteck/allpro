@@ -49,7 +49,21 @@ bool IsoCanAdapter::sendToEcu(const uint8_t* buff, int length)
 
     // Extended address byte
     const ByteArray* canExt = config_->getBytesProperty(PAR_CAN_EXT);
-    int totalLen = canExt->length ? (length + 2) : (length + 1); // + cea byte, + len byte
+    int totalLen;
+	if(canExt->length)
+	{
+		totalLen = length + 1;
+		//AdptSendReply("Ext ID");
+	}
+	else
+		totalLen = length; // + cea byte
+
+
+    if(config_->getBoolProperty(PAR_CAN_CAF)) // PIN
+    {
+    	totalLen ++; // no add len, already in Buff (autoformatting off)
+    	//AdptSendReply("Add LEN");
+    }
     canExtAddr_ = canExt->length; // set class instance member
     
     if (totalLen <= CAN_FRAME_LEN) { 
@@ -61,11 +75,13 @@ bool IsoCanAdapter::sendToEcu(const uint8_t* buff, int length)
         // OBD type format with dlc=8, and first byte = length
         //
         dlc = (getProtocol() != PROT_ISO15765_USR_B) ? CAN_FRAME_LEN : totalLen;
-        data[i++] = length;
+        if(config_->getBoolProperty(PAR_CAN_CAF)) // PIN
+        	data[i++] = length;  // no add len, already in Buff (autoformatting off)
         memcpy(data + i, buff, length);
         return sendFrameToEcu(data, totalLen, dlc);
     }
     else {
+    	AdptSendReply("Msg too long CAN");
         return false;
     }
 }
@@ -131,7 +147,10 @@ void IsoCanAdapter::processFrame(const CanMsgBuffer* msg)
         formatReplyWithHeader(msg, str, dlen + offst);
     }
     else {
-        to_ascii(msg->data + offst, dlen, str);
+    	if(config_->getBoolProperty(PAR_CAN_CAF))// PIN
+    		to_ascii(msg->data + offst, dlen, str);
+    	else
+    		to_ascii(msg->data + offst-1, dlen+1, str); // leave full message  (1 byte len)
     }
     AdptSendReply(str);
 }
@@ -153,12 +172,24 @@ void IsoCanAdapter::processFirstFrame(const CanMsgBuffer* msg)
     else {
       	const int STR_LEN = 4; // we need only 3 digits + null terminator
         char slen[STR_LEN];
-        sprintf(slen, "%.3X", static_cast<unsigned>(msgLen));
-        AdptSendReply(slen);
-        str = "0: ";
-        to_ascii(msg->data + offst + 1, dlen, str);
+
+        if(config_->getBoolProperty(PAR_CAN_CAF))// PIN
+        {
+        	sprintf(slen, "%.3X", static_cast<unsigned>(msgLen));
+        	AdptSendReply(slen);
+        	str = "0: ";
+    		to_ascii(msg->data + offst+1, dlen, str);
+        }
+        else
+        {
+    		to_ascii(msg->data + offst-1, dlen+2, str); // leave full message (2 byte len)
+        }
+
     }
+
     AdptSendReply(str);
+
+
 }
 
 /**
@@ -178,11 +209,19 @@ void IsoCanAdapter::processNextFrame(const CanMsgBuffer* msg, int n)
     else {
     	const int STR_LEN = 4;
         char prefix[STR_LEN]; // space for 1.5 bytes plus null terminator
-        sprintf(prefix, "%X: ", (n & 0x0F));
-        str = prefix;
-        to_ascii(msg->data + offst, dlen, str);
+        if(config_->getBoolProperty(PAR_CAN_CAF))// PIN
+        {
+        	sprintf(prefix, "%X: ", (n & 0x0F));
+        	str = prefix;
+    		to_ascii(msg->data + offst, dlen, str);
+        }
+    	else
+    		to_ascii(msg->data + offst-1, dlen+1, str); // leave full message  (1 byte len)
+
     }
+
     AdptSendReply(str);
+
 }
 
 /**
@@ -211,7 +250,7 @@ bool IsoCanAdapter::receiveFromEcu(bool sendReply, uint32_t numOfResp)
 {
     const int MAX_PEND_RESP_NUM = 100;
     int pendRespCounter = 0;
-    const int p2Timeout = getP2MaxTimeout();
+    const int p2Timeout = getP2MaxTimeout()*3; //pin increased timeout
     CanMsgBuffer msgBuffer;
     bool msgReceived = false;
     canExtAddr_ = config_->getBytesProperty(PAR_CAN_EXT)->length; // set class instance member
@@ -219,6 +258,9 @@ bool IsoCanAdapter::receiveFromEcu(bool sendReply, uint32_t numOfResp)
     
     Timer* timer = Timer::instance(0);
     timer->start(p2Timeout);
+
+    LongTimer* LongTimer_ = LongTimer::instance(); // Pin use long timer
+    LongTimer_->start(p2Timeout);
 
     uint32_t num = 0;
     do {
@@ -234,11 +276,11 @@ bool IsoCanAdapter::receiveFromEcu(bool sendReply, uint32_t numOfResp)
         
         if (!checkResponsePending(&msgBuffer) || pendRespCounter > MAX_PEND_RESP_NUM) {
             // Reload the timer, regular P2 timeout
-            timer->start(p2Timeout);
+        	LongTimer_->start(p2Timeout);
         }
         else {
             // Reload the timer, P2* timeout
-            timer->start(P2_MAX_TIMEOUT_S);
+        	LongTimer_->start(P2_MAX_TIMEOUT_S);
             pendRespCounter++;
         }
         
@@ -270,7 +312,7 @@ bool IsoCanAdapter::receiveFromEcu(bool sendReply, uint32_t numOfResp)
             default:
                 processFrame(&msgBuffer); // oops
         }
-    } while (!timer->isExpired() && (num < numOfResp));
+    } while (!LongTimer_->isExpired() && (num < numOfResp));
 
     return msgReceived;
 }
@@ -281,6 +323,7 @@ bool IsoCanAdapter::receiveFromEcu(bool sendReply, uint32_t numOfResp)
  * @param[in] bs Control frame BS parameter
  * @return true if message received, false otherwise
  */
+
 bool IsoCanAdapter::receiveControlFrame(uint8_t& fs, uint8_t& bs, uint8_t& stmin)
 {
     const int p2Timeout = getP2MaxTimeout();
@@ -313,6 +356,7 @@ bool IsoCanAdapter::receiveControlFrame(uint8_t& fs, uint8_t& bs, uint8_t& stmin
 
     return false;
 }
+
 
 /**
  * The P2 timeout to use

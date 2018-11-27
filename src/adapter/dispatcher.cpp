@@ -510,6 +510,7 @@ static void SetDefault()
     config->setIntProperty(PAR_WAKEUP_VAL, (DEFAULT_WAKEUP_TIME / 20));
     config->setIntProperty(PAR_CAN_TSTR_ADDRESS, TESTER_ADDRESS);
     config->setIntProperty(PAR_CAN_TSTR_ADDRESS, 0xF1);
+    config->setIntProperty(PAR_TIMEOUT, 0);
 }
 
 /**
@@ -557,7 +558,6 @@ static const DispatchType dispatchTbl[] = {
     { "AT1",    PAR_ADPTV_TIM1,        0,  0, OnSetAT1               },
     { "AT2",    PAR_ADPTV_TIM2,        0,  0, OnSetAT2               },
     { "BD",     PAR_BUFFER_DUMP,       0,  0, OnBufferDump           },
-    { "AL",     PAR_ALLOW_LONG,        0,  0, OnSetOK                },
     { "BI",     PAR_BYPASS_INIT,       0,  0, OnSetValueTrue         },
     { "BRD",    PAR_TRY_BRD,           2,  2, OnSetValueInt          },
     { "BRT",    PAR_SET_BRD,           2,  2, OnSetValueInt          },
