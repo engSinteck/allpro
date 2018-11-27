@@ -24,7 +24,7 @@ const int TxPort = 0;
 const uint32_t PinAssign = ((RxPin << 16) + (RxPort * 32)) | ((TxPin << 8)  + (TxPort * 32));
 const uint32_t CAN_MSGOBJ_STD = 0x00000000;
 const uint32_t CAN_MSGOBJ_EXT = 0x20000000;
-const int FIFO_NUM = 15; // PIN increased buffer size from 10 to 15
+const int FIFO_NUM = 10;
 
 // Driver static variables
 CAN_HANDLE_T CanDriver::handle_;
@@ -64,7 +64,7 @@ extern "C" {
  * Make the particular message buffer part of the FIFO
  * @parameter msgobj C-CAN message object number
  */
-static void SetFIFOItem(uint32_t msgobj, bool fifoLast)
+static void SetFIFOItem(uint32_t msgobj) 
 {   // p458,
     const uint32_t IFCREQ_BUSY = 0x8000;
     const uint32_t CMD_CTRL    = (1 << 4); // 1 is transfer the CTRL bit to the message object, 0 is not
@@ -72,14 +72,11 @@ static void SetFIFOItem(uint32_t msgobj, bool fifoLast)
     const uint32_t DLC_LEN     = 8;
     const uint32_t RXIE        = (1 << 10);
     const uint32_t UMASK       = (1 << 12);
-    const uint32_t EOB         = (1 << 6);
 
     // Write only control bits
     // Note: message number CANIF1_CMDREQ.MN starts with 1
     LPC_C_CAN0->CANIF1_CMDMSK_W = CMD_WR | CMD_CTRL;
     LPC_C_CAN0->CANIF1_MCTRL = DLC_LEN | RXIE | UMASK;
-    if (fifoLast)
-    	LPC_C_CAN0->CANIF1_MCTRL = DLC_LEN | RXIE | UMASK | EOB; // PIN add end of buffer
     LPC_C_CAN0->CANIF1_CMDREQ = msgobj + 1;    // Start message transfer
     while(LPC_C_CAN0->CANIF1_CMDREQ & IFCREQ_BUSY);
 }
@@ -225,9 +222,9 @@ void CanDriver::configRxMsgobj(uint32_t filter, uint32_t mask, uint8_t msgobj, b
     msg.mode_id = filter | (extended ? CAN_MSGOBJ_EXT : CAN_MSGOBJ_STD);
     msg.mask = mask;
     LPC_CAND_API->hwCAN_ConfigRxmsgobj(handle_, &msg);
-
-    SetFIFOItem(msgobj, fifoLast);
-
+    if (!fifoLast) {
+        SetFIFOItem(msgobj);
+    }
 }
 
 /**
@@ -243,7 +240,9 @@ bool CanDriver::setFilterAndMask(uint32_t filter, uint32_t mask, bool extended)
     for (uint8_t msgobj = 1; msgobj <= FIFO_NUM; msgobj++) {
         bool fifoLast = (msgobj == FIFO_NUM);
         configRxMsgobj(filter, mask, msgobj, extended, fifoLast);
-
+        if (!fifoLast) {
+            SetFIFOItem(msgobj);
+        }
     }
     return true;
 }
@@ -286,7 +285,6 @@ bool CanDriver::setFilterAndMask(uint32_t filter, uint32_t mask, bool extended, 
     }
     return false;
 }
-
 
 /**
  * Read the CAN frame from FIFO buffer

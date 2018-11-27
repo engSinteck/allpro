@@ -203,7 +203,6 @@ int OBDProfile::onRequestImpl(const string& cmdString)
 
     // Valid request length?
     if (!sendLengthCheck(data, len)) {
-    	AdptSendReply("Msg too long");
         return REPLY_DATA_ERROR;
     }
 
