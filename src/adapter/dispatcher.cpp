@@ -1,33 +1,33 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2016 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
 #include <climits>
 #include <cstdio>
-#include <adaptertypes.h>
+#include "adaptertypes.h"
+#include "datacollector.h"
 #include <obd/j1979.h>
 #include "obd/obdprofile.h"
 #include <algorithms.h>
 #include <CmdUart.h>
 #include <AdcDriver.h>
-#include <TimeoutMgr.h>
+#include <timeoutmgr.h>
 #include <obd/isocan.h>
 
 using namespace util;
 
 //
-// Reply string constants
-//
-static const char ErrMessage [] = "?";
-static const char OkMessage  [] = "OK";
-static const char Version    [] = "1.13";
-static const char Interface  [] = "ELM327 v2.1";
-static const char Copyright  [] = "Copyright (c) 2009-2017 ObdDiag.Net";
-static const char Copyright2 [] = "This is free software; see the source for copying conditions. There is NO";
-static const char Copyright3 [] = "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.";
+// Reply string constants//
+static const char ErrMessage[] { "?" };
+static const char OkMessage [] { "OK" };
+static const char Version   [] { "1.21" };
+static const char Interface [] { "ELM327 v2.1" };
+static const char Copyright [] { "Copyright (c) 2009-2018 ObdDiag.Net" };
+static const char Copyright2[] { "This is free software; see the source for copying conditions. There is NO" };
+static const char Copyright3[] { "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE." };
 
 
 /**
@@ -168,7 +168,7 @@ static void OnCanSetReceiveAddress(const string& cmd, int par)
 {
     ByteArray bytes;
     
-    AdapterConfig* config = AdapterConfig::instance();
+    auto config = AdapterConfig::instance();
     
     if (cmd.length() == 0) {
         config->setBytesProperty(PAR_CAN_FILTER, &bytes);
@@ -199,9 +199,9 @@ static void OnCanSetReceiveAddress(const string& cmd, int par)
  */
 static void OnCanSetFlowControlMode(const string& cmd, int par)
 {
-    AdapterConfig* config = AdapterConfig::instance();
-    const ByteArray* hdr = config->getBytesProperty(PAR_CAN_FLOW_CTRL_HDR);
-    const ByteArray* bytes = config->getBytesProperty(PAR_CAN_FLOW_CTRL_DAT);
+    auto config = AdapterConfig::instance();
+    auto hdr = config->getBytesProperty(PAR_CAN_FLOW_CTRL_HDR);
+    auto bytes = config->getBytesProperty(PAR_CAN_FLOW_CTRL_DAT);
 
     switch (stoul(cmd, 0, 16)) {
         case 0:
@@ -346,7 +346,7 @@ static void OnKwDisplay(const string& cmd, int par)
  */
 static void OnJ1939MonitorDM1(const string& cmd, int par)
 {
-	OBDProfile::instance()->monitor();
+    OBDProfile::instance()->monitor();
 }
 
 /**
@@ -356,7 +356,7 @@ static void OnJ1939MonitorDM1(const string& cmd, int par)
  */
 static void OnJ1939MonitorMP(const string& cmd, int par)
 {
-	OBDProfile::instance()->monitor(cmd);
+    OBDProfile::instance()->monitor(cmd);
 }
 
 /**
@@ -465,11 +465,11 @@ static void OnSet4HeaderBytes(const string& cmd, int par)
 }
 
 /**
- * Set CAN timeout multiplier, ATCTM1 or ATCTM5
+ * Set CAN/J1939 timeout multiplier, ATCTM1/ATCTM5 or ATJTM1/5
  * @param[in] cmd Command line
  * @param[in] par The number in dispatch table
  */
-static void OnCanSetTimeoutMult(const string& cmd, int par)
+static void OnSetTimeoutMult(const string& cmd, int par)
 {
     bool val = false;
     if (cmd == "1") {
@@ -482,7 +482,30 @@ static void OnCanSetTimeoutMult(const string& cmd, int par)
         AdptSendReply(ErrMessage);
         return;
     }
-    AdapterConfig::instance()->setBoolProperty(PAR_CAN_TIMEOUT_MULT, val);
+    AdapterConfig::instance()->setBoolProperty(par, val);
+    AdptSendReply(OkMessage);
+}
+
+/**
+ * Set VPW physical layer speed, either 10.4 or 41.6 Kbps
+ * @param[in] cmd Command line
+ * @param[in] par The number in dispatch table
+ */
+static void OnSetVPWSpeed(const string& cmd, int par)
+{
+    uint32_t speed = 0;
+    if (cmd == "1") {
+        speed = 1;
+    }
+    else if(cmd == "4") {
+        speed = 4;
+    }
+    else { // reject everything else
+        AdptSendReply(ErrMessage);
+        return;
+    }
+    
+    AdapterConfig::instance()->setIntProperty(PAR_VPW_SPEED, speed);
     AdptSendReply(OkMessage);
 }
 
@@ -491,7 +514,7 @@ static void OnCanSetTimeoutMult(const string& cmd, int par)
  */
 static void SetDefault()
 {
-    AdapterConfig* config = AdapterConfig::instance();
+    auto config = AdapterConfig::instance();
     OBDProfile::instance()->setProtocol(PROT_AUTO, true);
     config->clear();
     config->setBoolProperty(PAR_HEADER_SHOW, false);
@@ -499,17 +522,19 @@ static void SetDefault()
     config->setBoolProperty(PAR_ECHO, true);
     config->setBoolProperty(PAR_SPACES, true);
     config->setBoolProperty(PAR_USE_AUTO_SP, true);
-    config->setBoolProperty(PAR_KW_CHECK, false);
+    config->setBoolProperty(PAR_KW_CHECK, true);
     config->setBoolProperty(PAR_CAN_DLC, false);
     config->setBoolProperty(PAR_CAN_FLOW_CONTROL, true);
     config->setBoolProperty(PAR_AUTO_RECEIVE, true);
-    config->setBoolProperty(PAR_CAN_TIMEOUT_MULT, false);
+    config->setBoolProperty(PAR_CAN_TIMEOUT_MLT, false);
     config->setBoolProperty(PAR_CAN_SILENT_MODE, true);
     config->setBoolProperty(PAR_J1939_HEADER, true);
+    config->setBoolProperty(PAR_J1939_TIMEOUT_MLT, false);
     config->setIntProperty(PAR_ISO_INIT_ADDRESS, 0x33);
     config->setIntProperty(PAR_WAKEUP_VAL, (DEFAULT_WAKEUP_TIME / 20));
     config->setIntProperty(PAR_CAN_TSTR_ADDRESS, TESTER_ADDRESS);
     config->setIntProperty(PAR_CAN_TSTR_ADDRESS, 0xF1);
+    config->setIntProperty(PAR_VPW_SPEED, 1);
     config->setIntProperty(PAR_TIMEOUT, 0);
 }
 
@@ -531,7 +556,6 @@ static void OnSetDefault(const string& cmd, int par)
  */
 static void OnReset(const string& cmd, int par) 
 {
-    OBDProfile::instance()->closeProtocol();
     SetDefault();
     ProtocolAdapter::clearHistory();
     AdptSendReply(Interface);
@@ -579,7 +603,7 @@ static const DispatchType dispatchTbl[] = {
     { "CS",     PAR_CAN_SHOW_STATUS,   0,  0, OnCanShowStatus        },
     { "CSM0",   PAR_CAN_SILENT_MODE,   0,  0, OnSetValueFalse        },
     { "CSM1",   PAR_CAN_SILENT_MODE,   0,  0, OnSetValueTrue         },
-    { "CTM",    PAR_CAN_TIMEOUT_MULT,  1,  1, OnCanSetTimeoutMult    },
+    { "CTM",    PAR_CAN_TIMEOUT_MLT,   1,  1, OnSetTimeoutMult       },
     { "CV",     PAR_CALIBRATE_VOLT,    4,  4, OnSetOK                },
     { "D",      PAR_SET_DEFAULT,       0,  0, OnSetDefault           },
     { "D0",     PAR_CAN_DLC,           0,  0, OnSetValueFalse        },
@@ -605,7 +629,7 @@ static const DispatchType dispatchTbl[] = {
     { "JHF0",   PAR_J1939_HEADER,      0,  0, OnSetValueFalse        },
     { "JHF1",   PAR_J1939_HEADER,      0,  0, OnSetValueTrue         },
     { "JS",     PAR_J1939_FMT,         0,  0, OnSetValueTrue         },
-    { "JTM",    PAR_CAN_TIMEOUT_MULT,  1,  1, OnCanSetTimeoutMult    },
+    { "JTM",    PAR_J1939_TIMEOUT_MLT, 1,  1, OnSetTimeoutMult       },
     { "KW",     PAR_KW_DISPLAY,        0,  0, OnKwDisplay            },
     { "KW0",    PAR_KW_CHECK,          0,  0, OnSetValueFalse        },
     { "KW1",    PAR_KW_CHECK,          0,  0, OnSetValueTrue         },
@@ -641,6 +665,7 @@ static const DispatchType dispatchTbl[] = {
     { "TP",     PAR_TRY_PROTOCOL,      2,  2, OnSetProtocol          },
     { "V0",     PAR_CAN_VAIDATE_DLC,   0,  0, OnSetValueFalse        },
     { "V1",     PAR_CAN_VAIDATE_DLC,   0,  0, OnSetValueTrue         },
+    { "VPW",    PAR_VPW_SPEED,         1,  1, OnSetVPWSpeed          },
     { "WM",     PAR_WM_HEADER,         2, 12, OnSetBytes             },
     { "WS",     PAR_WARMSTART,         0,  0, OnReset                },
     { "Z",      PAR_RESET_CPU,         0,  0, OnReset                }
@@ -662,22 +687,22 @@ static bool DispatchATCmd(const string& cmdString, int numOfChar, bool extraPar)
      // Ignore first two "AT" chars
     string atcmd = extraPar ? cmdString.substr(2, numOfChar) : cmdString.substr(2);
 
-    for (int i = 0; i < sizeof(dispatchTbl)/sizeof(dispatchTbl[0]); i++) {
-        bool cmdType = dispatchTbl[i].minParNum > 0;
+    for (const DispatchType& dt : dispatchTbl) {
+        bool cmdType = dt.minParNum > 0;
         
-        if ((cmdType == extraPar) && (atcmd == dispatchTbl[i].name)) {
+        if ((cmdType == extraPar) && (atcmd == dt.name)) {
             string arg = extraPar ? cmdString.substr(numOfChar + 2) : "";
 
             // Argument length validation if we have an argument
-            if (extraPar && !ValidateArgLength(dispatchTbl[i], arg)) {
+            if (extraPar && !ValidateArgLength(dt, arg)) {
                 continue;
             }
             
             // Have callback?
-            if (!dispatchTbl[i].callback)
+            if (!dt.callback)
                 return false;
             
-            dispatchTbl[i].callback(arg, dispatchTbl[i].id);
+            dt.callback(arg, dt.id);
             return true;
         }
     }
@@ -705,36 +730,36 @@ static bool ParseGenericATCmd(const string& cmdString)
 
 /**
  * Get the new command, do the processing. The "entry point" is here!
- * @param[in] cmdString The user command
+ * @param[in] collector The user command
  */
-void AdptOnCmd(string& cmdString)
+void AdptOnCmd(const DataCollector* collector)
 {
-    static string PreviousCmd(RX_BUFFER_LEN);
+    static DataCollector previousCmd(OBD_IN_MSG_DLEN);
     bool succeeded = false;
     
-    // Compress and convert to uppercase 
-    to_upper(cmdString);
-    remove_space(cmdString);
-
+    const DataCollector* activeCollector = collector;
+    
     // Repeat the previous ?
-    if (cmdString.empty()) {
-        cmdString = PreviousCmd;
+    if (collector->getString().empty()) {
+        activeCollector = &previousCmd;
+    }
+    else if(!collector->isHugeBuffer()) { // do not provide this functionality
+        previousCmd = *collector;         // for huge buffers
+    }
+
+    if (activeCollector->isData()) { // Should be only digits
+        OBDProfile::instance()->onRequest(activeCollector);
+        succeeded = true;
     }
     else {
-        PreviousCmd = cmdString;
-    }
+        const string& cmdString = activeCollector->getString();
+        string key = cmdString.substr(0,2);
 
-    // Do we have AT sequence here?
-    if (cmdString.substr(0,2) != "AT") { // Not AT sequence
-        if (is_xdigits(cmdString)) {     // Should be only digits
-            OBDProfile::instance()->onRequest(cmdString);
-            succeeded = true;
+        if (key == "AT") { // AT sequence
+            succeeded = ParseGenericATCmd(cmdString); // String cmd->numeric
         }
     }
-    else { // AT sequence
-        succeeded = ParseGenericATCmd(cmdString); // String cmd->numeric
-    }
-    
+
     if (!succeeded) {
         AdptSendReply(ErrMessage);
     }
@@ -762,31 +787,36 @@ void AdptCheckHeartBeat()
  * Send out string with <CR><LF>
  * @param[in] str String to send
  */
+void AdptSendReply(const char* str)
+{
+    string s(strlen(str) + 2); // avoid unnecessary re-allocation, allocate the exact number of bytes
+    s = str;
+    AdptSendReply(s);
+}
+
+/**
+ * Send out string with <CR><LF>
+ * @param[in] str String to send
+ */
 void AdptSendReply(const string& str)
 {
-    string s = str;
-    if (AdapterConfig::instance()->getBoolProperty(PAR_LINEFEED)) {
-        s += "\r\n";
-        AdptSendString(s);
-    }
-    else {
-        s += "\r";
-        AdptSendString(s);
-    }
+    string s(str.length() + 2); // avoid unnecessary re-allocation, allocate the exact number of bytes
+    s = str;
+    AdptSendReply(s); // use the next one
 }
 
 /**
  * Send out string with <CR><LF>, do not a allocate additional string
  * @param[in] str String to send
  */
-void AdptSendReply2(string& s)
+void AdptSendReply(string& str)
 {
     if (AdapterConfig::instance()->getBoolProperty(PAR_LINEFEED)) {
-        s += "\r\n";
-        AdptSendString(s);
+        str += "\r\n";
+        AdptSendString(str);
     }
     else {
-        s += "\r";
-        AdptSendString(s);
+        str += "\r";
+        AdptSendString(str);
     }
 }

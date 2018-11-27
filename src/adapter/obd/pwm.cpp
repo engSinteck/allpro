@@ -1,7 +1,7 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2016 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
@@ -32,14 +32,6 @@ void PwmAdapter::open()
     
     // Reset adaptive timing
     TimeoutManager::instance()->reset();
-}
-
-/**
- * On adapter close
- */
-void PwmAdapter::close()
-{
-    connected_ = false;
 }
 
 /**
@@ -231,8 +223,8 @@ int PwmAdapter::onConnectEcu(bool sendReply)
     open();
 
     if (OBDProfile::instance()->getProtocol() == PROT_J1850_VPW) {
-    	connected_ = true;
-    	return PROT_J1850_PWM;
+        connected_ = true;
+        return PROT_J1850_PWM;
     }
 
     int reply = requestImpl(testSeq, sizeof(testSeq), 0xFFFFFFfF, sendReply);
@@ -256,7 +248,6 @@ int PwmAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
 {
     int p2Timeout = getP2MaxTimeout();
     bool gotReply = false;
-    util::string str;
     
     unique_ptr<Ecumsg> msg(Ecumsg::instance(Ecumsg::PWM));
     
@@ -287,7 +278,7 @@ int PwmAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
         if (sts == 0) {  // Timeout
             break;
         }        
-        if (msg->length() < OBD2_BYTES_MIN || msg->length() > OBD2_BYTES_MAX) {
+        if (msg->length() < OBD2_BYTES_MIN || msg->length() > J1850_BYTES_MAX) {
             continue;
         }
         if (msg->data()[1] != expct2ndByte) { // Ignore all replies but expected
@@ -311,10 +302,8 @@ int PwmAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
         }
 
         if (sendReply && msg->length() > 0) {
-            msg->toString(str);
-            AdptSendReply(str);
+            msg->sendReply();
         }
-        str.resize(0);
         gotReply = true;
     } while(!timer_->isExpired() && (num < numOfResp));
         

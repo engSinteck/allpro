@@ -1,11 +1,11 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2016 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
-#ifndef __ADAPTER_TYPES_H__ 
+#ifndef __ADAPTER_TYPES_H__
 #define __ADAPTER_TYPES_H__
 
 #include <cstdint>
@@ -16,14 +16,21 @@
 using namespace std;
 
 // Config settings
-const int KWP_HDR_LEN      = 5; // 4 header + 1 chksum
-const int OBD_IN_MSG_DLEN  = 8;
-const int OBD_OUT_MSG_DLEN = 255;                            // Binary len
-const int OBD_OUT_MSG_LEN  = OBD_OUT_MSG_DLEN + KWP_HDR_LEN; // Binary buffer size
-const int TX_BUFFER_LEN    = OBD_OUT_MSG_LEN * 3;            // Char buffer size
 
-const int OBD_IN_MSG_LEN   = OBD_IN_MSG_DLEN + KWP_HDR_LEN;
-const int RX_BUFFER_LEN    = OBD_IN_MSG_LEN * 3; 
+// OBD part
+const int KWP_EXTRA_LEN    = 5; // 4 header + 1 chksum
+const int OBD_IN_MSG_DLEN  = 8;
+const int OBD_OUT_MSG_DLEN = 255;
+const int OBD_IN_MSG_LEN   = OBD_IN_MSG_DLEN + KWP_EXTRA_LEN;
+const int OBD_OUT_MSG_LEN  = OBD_OUT_MSG_DLEN + KWP_EXTRA_LEN;
+
+// J1850 part
+const int J1850_IN_MSG_DLEN = 2080;
+const int J1850_EXTRA_LEN   = 4; // 3 header + 1 chksum
+
+const int TX_BUFFER_LEN  = 64;
+const int RX_BUFFER_LEN  = J1850_IN_MSG_DLEN;
+const int RX_RESERVED    = J1850_EXTRA_LEN;
 
 //
 // Command dispatch values
@@ -48,7 +55,7 @@ enum AT_Requests {
     PAR_CAN_SEND_RTR,
     PAR_CAN_SHOW_STATUS,
     PAR_CAN_SILENT_MODE,
-    PAR_CAN_TIMEOUT_MULT,
+    PAR_CAN_TIMEOUT_MLT,
     PAR_CAN_VAIDATE_DLC,
     PAR_CHIP_COPYRIGHT,
     PAR_DESCRIBE_PROTCL_N,
@@ -66,6 +73,7 @@ enum AT_Requests {
     PAR_J1939_FMT,
     PAR_J1939_HEADER,
     PAR_J1939_MONITOR,
+    PAR_J1939_TIMEOUT_MLT,
     PAR_KW_CHECK,
     PAR_KW_DISPLAY,
     PAR_LINEFEED,
@@ -97,12 +105,13 @@ enum AT_Requests {
     PAR_SET_BRD,
     PAR_TIMEOUT,
     PAR_TRY_BRD,
+    PAR_VPW_SPEED,
     PAR_WAKEUP_VAL,
     INT_PROPS_END,
     // bytes properties
     PAR_CAN_EXT = BYTES_PROPS_START,
     PAR_CAN_FILTER,
-	PAR_CAN_FLOW_CTRL_DAT,
+    PAR_CAN_FLOW_CTRL_DAT,
     PAR_CAN_FLOW_CTRL_HDR,
     PAR_CAN_MASK,
     PAR_CAN_PRIORITY_BITS,
@@ -118,15 +127,15 @@ enum AT_Requests {
 //
 union IntAggregate
 {
-    uint32_t lvalue;  
-    uint8_t  bvalue[4];  
+    uint32_t lvalue;
+    uint8_t  bvalue[4];
     IntAggregate() { lvalue = 0; }
     IntAggregate(uint32_t val) { lvalue = val; }
     IntAggregate(uint8_t b0, uint8_t b1, uint8_t b2 = 0, uint8_t b3 = 0) {
-        bvalue[0] = b0; 
-        bvalue[1] = b1; 
-        bvalue[2] = b2; 
-        bvalue[3] = b3; 
+        bvalue[0] = b0;
+        bvalue[1] = b1;
+        bvalue[2] = b2;
+        bvalue[3] = b3;
     }
 };
 
@@ -135,8 +144,8 @@ union IntAggregate
 //
 struct ByteArray {
     const static int ARRAY_SIZE = 7;
-    ByteArray() : length(0) { 
-        memset(data, 0, sizeof(data));
+    ByteArray()  {
+        clear();
     }
     uint32_t asCanId() const {
         if (length == 4) {
@@ -148,6 +157,10 @@ struct ByteArray {
             return val.lvalue;
         }
         return 0;
+    }
+    void clear() {
+        length = 0;
+        memset(data, 0, sizeof(data));
     }
     uint8_t data[ARRAY_SIZE];
     uint8_t length;
@@ -176,7 +189,7 @@ private:
 };
 
 //
-// Helper class for insering spaces, depends on ATS0/ATS1
+// Helper class for inserting spaces, depends on ATS0/ATS1
 //
 class Spacer {
 public:
@@ -191,12 +204,13 @@ private:
     bool spaces_;
 };
 
-
+class DataCollector;
 void AdptSendString(const util::string& str);
+void AdptSendReply(const char* str);
 void AdptSendReply(const util::string& str);
-void AdptSendReply2(util::string& str);
+void AdptSendReply(util::string& str);
 void AdptDispatcherInit();
-void AdptOnCmd(util::string& cmdString);
+void AdptOnCmd(const DataCollector* collector);
 void AdptCheckHeartBeat();
 void AdptReadSerialNum();
 void AdptPowerModeConfigure();

@@ -1,14 +1,14 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2017 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
-#include <adaptertypes.h>
 #include <algorithms.h>
+#include "adaptertypes.h"
 #include "timeoutmgr.h"
-//#include <lstring.h>
+#include "obd/obdprofile.h"
 
 const uint32_t AT1_VALUE  = 30;
 const uint32_t AT2_VALUE  = 10;
@@ -56,7 +56,7 @@ void TimeoutManager::p2Timeout(uint32_t val)
     AdptSendReply2(str);
 #endif
 }
-	
+    
 /**
  *  Get P2 timeout
  */
@@ -66,16 +66,16 @@ uint32_t TimeoutManager::p2Timeout() const
         return at0Timeout(); // The very first time
     }
     uint32_t timeout = 0;    
-	switch (mode_) {
-		case AT1:
-		    timeout = at1Timeout();
+    switch (mode_) {
+        case AT1:
+            timeout = at1Timeout();
             break;
-		case AT2:
-		    timeout = at2Timeout();
+        case AT2:
+            timeout = at2Timeout();
             break;
-		case AT0:
-		default:
-			timeout = at0Timeout();
+        case AT0:
+        default:
+            timeout = at0Timeout();
     }
 #ifdef DEBUG_TM_VAL2
     uint8_t data[2];
@@ -87,14 +87,14 @@ uint32_t TimeoutManager::p2Timeout() const
     return timeout;
 }
 
+
 /**
  *  Get the timeout for AT0 mode
  */
 uint32_t TimeoutManager::at0Timeout() const
 {
     uint32_t p2Timeout = AdapterConfig::instance()->getIntProperty(PAR_TIMEOUT); 
-    bool timeoutMult = AdapterConfig::instance()->getBoolProperty(PAR_CAN_TIMEOUT_MULT);
-    uint32_t timeoutMultVal = timeoutMult ? 5 : 1;
+    uint32_t timeoutMultVal = multiplier() ? 5 : 1;
     return p2Timeout ? (p2Timeout * 4 * timeoutMultVal) : DEFAULT_TIMEOUT; 
 }
 
@@ -112,4 +112,20 @@ uint32_t TimeoutManager::at1Timeout() const
 uint32_t TimeoutManager::at2Timeout() const
 {
     return timeout_ + AT2_VALUE;
+}
+
+/**
+ *  Get the timeout multiplier for CAN/J1939
+ */
+bool TimeoutManager::multiplier() const
+{
+    switch (OBDProfile::instance()->getProtocol()) {
+        case PROT_ISO15765_1150:
+        case PROT_ISO15765_2950:
+        case PROT_ISO15765_1125:
+        case PROT_ISO15765_2925:
+        case PROT_ISO15765_USR_B:
+            return AdapterConfig::instance()->getBoolProperty(PAR_CAN_TIMEOUT_MLT);
+    }
+    return false;
 }

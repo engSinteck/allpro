@@ -7,7 +7,7 @@
 
 #include <cstring>
 #include "UartLPC15xx.h"
-#include "GPIODrv.h"
+#include "GpioDrv.h"
 #include "CmdUart.h"
 
 using namespace std;
@@ -150,6 +150,7 @@ void CmdUart::send(uint8_t ch)
 
 /**
  * Send the string asynch
+ * Note: we do truncate the string up to txLen_ characters (192 chars)
  * @parameter[in] str String to send
  */
 void CmdUart::send(const util::string& str)

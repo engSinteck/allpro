@@ -1,7 +1,7 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2017 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
@@ -9,7 +9,7 @@
 #include <adaptertypes.h>
 #include <algorithms.h>
 #include <Timer.h>
-#include <candriver.h>
+#include <CanDriver.h>
 #include <led.h>
 #include "canhistory.h"
 #include "canmsgbuffer.h"
@@ -170,7 +170,7 @@ void IsoCanAdapter::processFirstFrame(const CanMsgBuffer* msg)
         formatReplyWithHeader(msg, str, 8);
     }
     else {
-      	const int STR_LEN = 4; // we need only 3 digits + null terminator
+        const int STR_LEN = 4; // we need only 3 digits + null terminator
         char slen[STR_LEN];
 
         if(config_->getBoolProperty(PAR_CAN_CAF))// PIN
@@ -207,7 +207,7 @@ void IsoCanAdapter::processNextFrame(const CanMsgBuffer* msg, int n)
         formatReplyWithHeader(msg, str, 8);
     }
     else {
-    	const int STR_LEN = 4;
+        const int STR_LEN = 4;
         char prefix[STR_LEN]; // space for 1.5 bytes plus null terminator
         if(config_->getBoolProperty(PAR_CAN_CAF))// PIN
         {
@@ -376,7 +376,7 @@ uint32_t IsoCanAdapter::getP2MaxTimeout() const
  */
 int IsoCanAdapter::onRequest(const uint8_t* data, uint32_t len, uint32_t numOfResp)
 {
-	 // Clear anything we might received before
+     // Clear anything we might received before
     driver_->clearData();
     
     if (!sendToEcu(data, len))
@@ -396,7 +396,7 @@ int IsoCanAdapter::onConnectEcu(bool sendReply)
     open();
 
     if (!config_->getBoolProperty(PAR_BYPASS_INIT)) {
-    	// Clear anything we might received before
+        // Clear anything we might received before
         driver_->clearData();
     
         bool retCode = driver_->send(&msgBuffer);

@@ -1,7 +1,7 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2016 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
@@ -35,32 +35,27 @@ void VpwAdapter::open()
 }
 
 /**
- * On adapter close
- */
-void VpwAdapter::close()
-{
-    connected_ = false;
-}
-
-/**
  * Send buffer to ECU using VPW
  * @param[in] msg Message to send
  * @return  1 if success, -1 if arbitration lost, 0 if bus busy
  */
 int VpwAdapter::sendToEcu(const Ecumsg* msg)
 {
+    // We might have J1850 41.6 Kbaud implementation
+    uint32_t speed = config_->getIntProperty(PAR_VPW_SPEED);
+
     insertToHistory(msg); // Buffer dump
     
     // Wait for bus to be inactive
     //
-    if (!driver_->wait4Ready(TV6_TX_NOM, TV4_TX_MIN, timer_)) {
+    if (!driver_->wait4Ready((TV6_TX_NOM / speed), (TV4_TX_MIN / speed), timer_)) {
         return 0;
     }
 
     TX_LED(true);  // Turn the transmit LED on
 
     // SOF pulse
-    driver_->sendSofVpw(TV3_TX_NOM); // 200us
+    driver_->sendSofVpw(TV3_TX_NOM / speed); // 200us
   
     for (int i = 0; i < msg->length(); i++) {
         uint8_t ch = msg->data()[i];  // sent next byte in buffer
@@ -69,12 +64,12 @@ int VpwAdapter::sendToEcu(const Ecumsg* msg)
         while (bits--) {  // send each bit in the byte
             if (bits & 0x01) { // Passive, set bus to 0
                 if (ch & 0x80)  {
-                    driver_->sendPulseVpw(TV2_TX_NOM); // 128us
-                    Delay1us(TV2_TX_NOM / 2);
+                    driver_->sendPulseVpw(TV2_TX_NOM / speed); // 128us
+                    Delay1us(TV2_TX_NOM / speed / 2);
                 }
                 else {
-                    driver_->sendPulseVpw(TV1_TX_NOM); // 64us
-                    Delay1us(TV1_TX_NOM / 2);
+                    driver_->sendPulseVpw(TV1_TX_NOM / speed); // 64us
+                    Delay1us(TV1_TX_NOM / speed / 2);
                 }
                 if (driver_->getBit()) {
                     driver_->stop();
@@ -84,10 +79,10 @@ int VpwAdapter::sendToEcu(const Ecumsg* msg)
             }
             else {  // Active, set bus to 1
                 if (ch & 0x80) {
-                    driver_->sendPulseVpw(TV1_TX_NOM); // 64us
+                    driver_->sendPulseVpw(TV1_TX_NOM / speed); // 64us
                 }
                 else {
-                    driver_->sendPulseVpw(TV2_TX_NOM); // 128us
+                    driver_->sendPulseVpw(TV2_TX_NOM / speed); // 128us
                 }
             }
             ch <<= 1;
@@ -106,11 +101,13 @@ int VpwAdapter::sendToEcu(const Ecumsg* msg)
  */
 bool VpwAdapter::waitForSof()
 {
+	uint32_t speed = config_->getIntProperty(PAR_VPW_SPEED);
+
     for (;;) {
-        uint32_t val = driver_->wait4Sof(TV3_RX_MAX, timer_);
+        uint32_t val = driver_->wait4Sof(TV3_RX_MAX / speed, timer_);
         if (val == 0xFFFFFFFF) // P2 timer expired
             return false;
-        if (val >= TV3_RX_MIN) 
+        if (val >= TV3_RX_MIN / speed)
             break;
     }
     return true;
@@ -122,6 +119,8 @@ bool VpwAdapter::waitForSof()
  */
 int VpwAdapter::receiveFromEcu(Ecumsg* msg, int maxLen)
 {
+    uint32_t speed = config_->getIntProperty(PAR_VPW_SPEED);
+    
     uint8_t* ptr = msg->data();
     msg->length(0); // Reset the buffer byte length
     
@@ -146,13 +145,13 @@ int VpwAdapter::receiveFromEcu(Ecumsg* msg, int maxLen)
                 goto extr; // EOD Max expired, terminate receive on timeout
             }
             state = !state;
-            if (pulse < TV1_RX_MIN) {
+            if (pulse < TV1_RX_MIN / speed) {
                 goto exte; // pulse is too short
             }
-            if (pulse > TV2_RX_MAX) {
+            if (pulse > TV2_RX_MAX / speed) {
                 goto exte; // pulse is too long
             }
-            ch |= (pulse > VPW_RX_MID) ? 1 : 0;
+            ch |= (pulse > VPW_RX_MID / speed) ? 1 : 0;
         }
         *(ptr++) = ch ^ 0x55;
     }
@@ -219,7 +218,6 @@ int VpwAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
 {
     int p2Timeout = getP2MaxTimeout();
     bool gotReply = false;
-    util::string str;
 
     unique_ptr<Ecumsg> msg(Ecumsg::instance(Ecumsg::VPW));
 
@@ -244,14 +242,14 @@ int VpwAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
     
     uint32_t num = 0;
     do {
-        int sts = receiveFromEcu(msg.get(), OBD_IN_MSG_LEN);
+        int sts = receiveFromEcu(msg.get(), J1850_IN_MSG_DLEN);
         if (sts == -1) { // Bus timing error
             continue;
         }
         if (sts == 0) {  // Timeout
             break;
         }
-        if (msg->length() < OBD2_BYTES_MIN || msg->length() > OBD2_BYTES_MAX) {
+        if (msg->length() < OBD2_BYTES_MIN) {
             continue;
         }
         if (msg->data()[1] != expct2ndByte) { // ignore all replies but expected
@@ -275,10 +273,8 @@ int VpwAdapter::requestImpl(const uint8_t* data, uint32_t len, uint32_t numOfRes
         }
 
         if (sendReply) {
-            msg->toString(str);
-            AdptSendReply(str);
+            msg->sendReply();
         }
-        str.resize(0);
         gotReply = true;
     } while(!timer_->isExpired() && (num < numOfResp));
 

@@ -8,7 +8,7 @@
 #include <cstring>
 #include "UartLPC15xx.h"
 #include "EcuUart.h"
-#include "GPIODrv.h"
+#include "GpioDrv.h"
 
 using namespace std;
 
@@ -18,8 +18,9 @@ const int RxPort = 0;
 const int TxPort = 0;
 const uint32_t PinAssign = ((RxPin << 16) + (RxPort * 32)) | ((TxPin << 8)  + (TxPort * 32));
 
-//#define INVERT_OUTPUT
-#define OPEN_DRAIN
+
+//#define INVERT_OUTPUT // Invert output for simple transistor-based K-line driver
+//#define OPEN_DRAIN    // We might have it for Dev board to be totally input level compiant.
 
 /**
  * EcuUart singleton
@@ -36,8 +37,12 @@ EcuUart* EcuUart::instance()
  */
 void EcuUart::configure()
 {
-    // Enable UART1 clock
+#ifndef INVERT_OUTPUT
     GPIOPinConfig(RxPort, RxPin, 0);
+#else    
+    GPIOPinConfig(RxPort, RxPin, GPIO_HYSTERESIS);
+#endif
+    
 #ifdef OPEN_DRAIN
     GPIOPinConfig(TxPort, TxPin, GPIO_OPEN_DRAIN);
 #else
@@ -47,6 +52,7 @@ void EcuUart::configure()
     GPIOSetDir(RxPort, RxPin, GPIO_INPUT);
     GPIOSetDir(TxPort, TxPin, GPIO_OUTPUT);
 
+    // Enable UART1 clock
     LPC_SYSCON->SYSAHBCLKCTRL1 |= (1 << 18);
     LPC_SYSCON->PRESETCTRL1 |=  (1 << 18);
     LPC_SYSCON->PRESETCTRL1 &= ~(1 << 18);
@@ -184,9 +190,13 @@ uint32_t EcuUart::getBit()
 }
 
 /**
- * Clear Framing/Parity errors, if any by reading RXDATA
+ * Clear Framing/Parity errors, if any, by reading RXDATA
  */
 void EcuUart::clear()
 {
-    get();
+    // Clear FRAMERR and PARITYERR by reading RXDATA
+    if (LPC_USART1->STAT & 0x6000) {
+        LPC_USART1->STAT |= 0x6000;
+        UARTReadByte(LPC_USART1);
+    }
 }

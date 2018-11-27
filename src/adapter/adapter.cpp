@@ -1,7 +1,7 @@
 /**
  * See the file LICENSE for redistribution information.
  *
- * Copyright (c) 2009-2016 ObdDiag.Net. All rights reserved.
+ * Copyright (c) 2009-2018 ObdDiag.Net. All rights reserved.
  *
  */
 
@@ -9,20 +9,24 @@
 #include <cctype>
 #include <LPC15xx.h>
 #include <Timer.h>
-#include <GPIODrv.h>
+#include <GpioDrv.h>
 #include <CmdUart.h>
 #include <CanDriver.h>
 #include <EcuUart.h>
 #include <PwmDriver.h>
 #include <AdcDriver.h>
 #include <led.h>
-#include <adaptertypes.h>
+#include "adaptertypes.h"
+#include "datacollector.h"
+
 
 using namespace std;
 using namespace util;
 
-static string CmdBuffer(RX_BUFFER_LEN);
+const int UART_SPEED = 115200;
+
 static CmdUart* glblUart;
+static DataCollector* collector;
 
 /**
  * Enable the clocks and peripherals, initialize the drivers
@@ -33,6 +37,10 @@ static void SetAllRegisters()
     LPC_SYSCON->SYSAHBCLKCTRL1 |= (1 << 0);
     LPC_SYSCON->PRESETCTRL1 &= ~(1 << 0);
     
+    // Enable STC2/SCT3 timers
+    LPC_SYSCON->SYSAHBCLKCTRL1 |= (3 << 4);
+    LPC_SYSCON->PRESETCTRL1 &= ~(3 << 4);
+
     // Enable RIT timer
     LPC_SYSCON->SYSAHBCLKCTRL1 |= (1 << 1);
     LPC_SYSCON->PRESETCTRL1 &= ~(1 << 1);
@@ -58,13 +66,8 @@ static void SetAllRegisters()
  */
 static bool UserUartRcvHandler(uint8_t ch)
 {
-    static string cmdBuffer(RX_BUFFER_LEN);
     bool ready = false;
     
-    if (cmdBuffer.length() >= (RX_BUFFER_LEN - 1)) {
-        cmdBuffer.resize(0); // Truncate it
-    }
-
     if (AdapterConfig::instance()->getBoolProperty(PAR_ECHO) && ch != '\n') {
         glblUart->send(ch);
         if (ch == '\r' && AdapterConfig::instance()->getBoolProperty(PAR_LINEFEED)) {
@@ -73,12 +76,10 @@ static bool UserUartRcvHandler(uint8_t ch)
     }
     
     if (ch == '\r') { // Got cmd terminator
-        CmdBuffer = cmdBuffer;
-        cmdBuffer.resize(0);
         ready = true;
     }
     else if (isprint(ch)) { // this will skip '\n' as well
-        cmdBuffer += ch;
+        collector->putChar(ch);
     }
     
     return ready;
@@ -93,28 +94,30 @@ void AdptSendString(const util::string& str)
     glblUart->send(str);
 }
 
-const int UART_SPEED = 115200;
-
 /**
  * Adapter main loop
  */
 static void AdapterRun() 
 {
+    collector = new DataCollector(RX_BUFFER_LEN, RX_RESERVED);
+    Ecumsg::setReferenceData(collector->getData());
+    
     glblUart = CmdUart::instance();
     glblUart->init(UART_SPEED);
     glblUart->handler(UserUartRcvHandler);
     AdptPowerModeConfigure();
     AdptDispatcherInit();
-
+    
     for(;;) {    
         if (glblUart->ready()) {
             glblUart->ready(false);
-            AdptOnCmd(CmdBuffer);
+            AdptOnCmd(collector);
+            collector->reset();
         }
         else {
             AdptCheckHeartBeat();
         }
-        __WFI(); // goto sleep
+        //__WFI(); // goto sleep
     }
 }
 
