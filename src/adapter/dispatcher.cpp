@@ -23,9 +23,9 @@ using namespace util;
 // Reply string constants//
 static const char ErrMessage[] { "?" };
 static const char OkMessage [] { "OK" };
-static const char Version   [] { "1.21" };
+static const char Version   [] { "1.23" };
 static const char Interface [] { "ELM327 v2.1" };
-static const char Copyright [] { "Copyright (c) 2009-2018 ObdDiag.Net" };
+static const char Copyright [] { "Copyright (c) 2009-2025 ObdDiag.Net" };
 static const char Copyright2[] { "This is free software; see the source for copying conditions. There is NO" };
 static const char Copyright3[] { "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE." };
 
@@ -578,6 +578,8 @@ static const DispatchType dispatchTbl[] = {
     { "@1",     PAR_VERSION,           0,  0, OnSendReplyVersion     },
     { "AL",     PAR_ALLOW_LONG,        0,  0, OnSetValueTrue         },
     { "AR",     PAR_AUTO_RECEIVE,      0,  0, OnSetValueTrue         },
+	{ "AMC",    PAR_AUTO_RECEIVE,      0,  0, OnSetOK                },
+	{ "AMT",    PAR_AUTO_RECEIVE,      2,  2, OnSetOK                },
     { "AT0",    PAR_ADPTV_TIM0,        0,  0, OnSetAT0               },
     { "AT1",    PAR_ADPTV_TIM1,        0,  0, OnSetAT1               },
     { "AT2",    PAR_ADPTV_TIM2,        0,  0, OnSetAT2               },
@@ -625,6 +627,7 @@ static const DispatchType dispatchTbl[] = {
     { "IB",     PAR_ISO_BAUDRATE,      2,  2, OnSetIsoBaudRate       },
     { "IFR",    PAR_INFRAME_RESPONSE,  1,  1, OnSetOK                },
     { "IIA",    PAR_ISO_INIT_ADDRESS,  2,  2, OnSetValueInt          },
+	{ "IGN",    PAR_INFRAME_RESPONSE,  0,  0, OnSetOK                },
     { "JE",     PAR_J1939_FMT,         0,  0, OnSetValueFalse        },
     { "JHF0",   PAR_J1939_HEADER,      0,  0, OnSetValueFalse        },
     { "JHF1",   PAR_J1939_HEADER,      0,  0, OnSetValueTrue         },
@@ -638,19 +641,25 @@ static const DispatchType dispatchTbl[] = {
     { "LP",     PAR_LOW_POWER_MODE,    0,  0, OnSetOK                },
     { "M0",     PAR_MEMORY,            0,  0, OnSetValueFalse        },
     { "M1",     PAR_MEMORY,            0,  0, OnSetValueTrue         },
-    { "MP",     PAR_J1939_MONITOR,     4,  7, OnJ1939MonitorMP       },
+	{ "MA",     PAR_RESPONSES,         0,  0, OnSetOK                },
+	{ "MP",     PAR_J1939_MONITOR,     4,  7, OnJ1939MonitorMP       },
+	{ "MR",     PAR_TESTER_ADDRESS,    2,  2, OnSetOK                },
+	{ "MT",     PAR_TESTER_ADDRESS,    2,  2, OnSetOK                },
     { "NL",     PAR_ALLOW_LONG,        0,  0, OnSetValueTrue         },
     { "PB",     PAR_USER_B,            4,  4, OnSetBytes             },
     { "PC",     PAR_PROTOCOL_CLOSE,    0,  0, OnProtocolClose        },
     { "PPFFON", PAR_DUMMY,             0,  0, OnSetOK                },
     { "PPFFOFF",PAR_DUMMY,             0,  0, OnSetOK                },
-    { "R0",     PAR_RESPONSES,         0,  0, OnSetValueFalse        },
+	{ "PPS",    PAR_RESPONSES,         0,  0, OnSetOK                },
+	{ "R0",     PAR_RESPONSES,         0,  0, OnSetValueFalse        },
     { "R1",     PAR_RESPONSES,         0,  0, OnSetValueTrue         },
     { "RA",     PAR_RECEIVE_ADDRESS,   2,  2, OnSetValueInt          },
+	{ "RD",     PAR_RESPONSES,         0,  0, OnSetOK                },
     { "RTR",    PAR_CAN_SEND_RTR,      0,  0, OnSetOK                },
     { "RV",     PAR_READ_VOLT,         0,  0, OnReadVoltage          },
     { "S0",     PAR_SPACES,            0,  0, OnSetValueFalse        },
     { "S1",     PAR_SPACES,            0,  0, OnSetValueTrue         },
+	{ "SD",     PAR_RECEIVE_ADDRESS,   2,  2, OnSetOK                },
     { "SH",     PAR_HEADER_BYTES,      3,  3, OnSetBytes             },
     { "SH",     PAR_HEADER_BYTES,      6,  6, OnSetBytes             },
     { "SH",     PAR_HEADER_BYTES,      8,  8, OnSet4HeaderBytes      },
