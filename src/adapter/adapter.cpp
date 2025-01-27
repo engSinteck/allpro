@@ -117,7 +117,6 @@ static void AdapterRun()
         else {
             AdptCheckHeartBeat();
         }
-        //__WFI(); // goto sleep
     }
 }
 

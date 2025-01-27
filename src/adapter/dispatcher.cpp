@@ -23,7 +23,7 @@ using namespace util;
 // Reply string constants//
 static const char ErrMessage[] { "?" };
 static const char OkMessage [] { "OK" };
-static const char Version   [] { "1.23" };
+static const char Version   [] { "1.24" };
 static const char Interface [] { "ELM327 v2.1" };
 static const char Copyright [] { "Copyright (c) 2009-2025 ObdDiag.Net" };
 static const char Copyright2[] { "This is free software; see the source for copying conditions. There is NO" };

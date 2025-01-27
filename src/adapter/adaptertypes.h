@@ -28,7 +28,7 @@ const int OBD_OUT_MSG_LEN  = OBD_OUT_MSG_DLEN + KWP_EXTRA_LEN;
 const int J1850_IN_MSG_DLEN = 2080;
 const int J1850_EXTRA_LEN   = 4; // 3 header + 1 chksum
 
-const int TX_BUFFER_LEN  = 64;
+const int TX_BUFFER_LEN  = 128;
 const int RX_BUFFER_LEN  = J1850_IN_MSG_DLEN;
 const int RX_RESERVED    = J1850_EXTRA_LEN;
 
@@ -228,7 +228,7 @@ uint32_t to_bytes(const util::string& str, uint8_t* bytes);
 void to_ascii(const uint8_t* bytes, uint32_t length, util::string& str);
 
 // LEDs
-#define TX_LED(val) GPIOPinWrite(TX_LED_PORT, TX_LED_NUM, (~val) & 0x1)
-#define RX_LED(val) GPIOPinWrite(RX_LED_PORT, RX_LED_NUM, (~val) & 0x1)
+#define TX_LED(val) GPIOPinWrite(TX_LED_PORT, TX_LED_NUM, (val) & 0x1)
+#define RX_LED(val) GPIOPinWrite(RX_LED_PORT, RX_LED_NUM, (val) & 0x1)
 
 #endif //__ADAPTER_TYPES_H__
